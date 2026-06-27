@@ -1,49 +1,72 @@
+
 const https = require("https");
-const fs = require("fs");
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://discord.com/api/webhooks/1520460000898846740/1slkPqhRAdV7D5S45ra7Kl3hK8Livo1FmAw7joU_tfmoVDw45UNAVxRfob-0ZSYXpfwM";
 const ROLE_ID = process.env.ROLE_ID || "1520459883135369367";
-const STATE_FILE = "state.json";
 
 const FAKE_EVENT = {
-  id: "test-fake-event-001",
   name: "Mega Moon",
   type: "moon",
-  state: "countdown",
-  releaseUnix: Math.floor(Date.now() / 1000) + 300,
-  graceEndUnix: Math.floor(Date.now() / 1000) + 600,
+  releaseUnix: Math.floor(Date.now() / 1000) + 15, 
   silhouetteAssetId: 93931571035202,
   revealAssetId: 81904298114761,
-  descriptionHtml: 'A <font color="#FFD54A">new moon</font> is in <font color="#4CAF50">grow a garden 2</font>... and it is <b><font color="#1E40AF">MEGA!</font></b> Collect <font color="#1E40AF">MEGA</font> seeds that spawn around the map, and grow your garden <font color="#1E40AF">MEGA</font>.',
+  descriptionHtml: 'A <font color="#FFD54A">new moon</font> is in <font color="#4CAF50">grow a garden 2</font>... and it is <b><font color="#1E40AF">MEGA!</font></b> Collect seeds that spawn around the map.',
 };
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, "").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').trim();
 }
 
-function postJSON(url, body) {
+function fetchJSON(url) {
+  return new Promise((resolve) => {
+    const lib = url.startsWith("https") ? https : require("http");
+    lib.get(url, { headers: { "User-Agent": "gag2drop-bot/1.0" } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchJSON(res.headers.location).then(resolve);
+      }
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { resolve(null); } });
+    }).on("error", () => resolve(null));
+  });
+}
+
+function request(method, url, body) {
   return new Promise((resolve, reject) => {
-    const payload = JSON.stringify(body);
+    const payload = body ? JSON.stringify(body) : null;
     const u = new URL(url);
     const req = https.request({
-      hostname: u.hostname, path: u.pathname + u.search, method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) }
+      hostname: u.hostname, path: u.pathname + u.search, method,
+      headers: { "Content-Type": "application/json", ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}) }
     }, (res) => {
       let d = ""; res.on("data", (c) => (d += c));
       res.on("end", () => resolve({ status: res.statusCode, body: d }));
     });
     req.on("error", reject);
-    req.write(payload); req.end();
+    if (payload) req.write(payload);
+    req.end();
   });
 }
+
+async function resolveAssetImage(assetId) {
+  if (!assetId) return null;
+  const data = await fetchJSON(
+    `https://thumbnails.roblox.com/v1/assets?assetIds=${assetId}&size=512x512&format=Png&isCircular=false`
+  );
+  return data?.data?.[0]?.imageUrl ?? null;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function main() {
   const event = FAKE_EVENT;
   const ts = event.releaseUnix;
-  const assetId = event.silhouetteAssetId ?? event.revealAssetId;
-  const imageUrl = `https://www.roblox.com/asset-thumbnail/image?assetId=${assetId}&width=512&height=512&format=png`;
 
-  const embed = {
+  console.log("Resolving silhouette image...");
+  const silhouetteUrl = await resolveAssetImage(event.silhouetteAssetId);
+  console.log("Silhouette URL:", silhouetteUrl ?? "(none)");
+
+  const countdownEmbed = {
     title: `${event.name} is dropping <t:${ts}:R>`,
     description: stripHtml(event.descriptionHtml),
     color: 0x1e40af,
@@ -51,30 +74,52 @@ async function main() {
       { name: "Type", value: event.type, inline: true },
       { name: "Release", value: `<t:${ts}:F>`, inline: true },
     ],
-    image: { url: imageUrl },
     footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
+  if (silhouetteUrl) countdownEmbed.image = { url: silhouetteUrl };
 
-  const payload = {
+  console.log("Sending countdown message...");
+  const res1 = await request("POST", WEBHOOK_URL + "?wait=true", {
     content: `<@&${ROLE_ID}>`,
-    embeds: [embed],
+    embeds: [countdownEmbed],
     allowed_mentions: { roles: [ROLE_ID] },
-  };
+  });
 
-  console.log("Sending test webhook...");
-  const res = await postJSON(WEBHOOK_URL, payload);
-  if (res.status >= 200 && res.status < 300) {
-    console.log("Webhook sent. Check your Discord channel.");
-  } else {
-    console.error(`Failed (HTTP ${res.status}):`, res.body);
+  if (res1.status < 200 || res1.status >= 300) {
+    console.error("Failed to send:", res1.status, res1.body);
+    return;
   }
 
-  if (fs.existsSync(STATE_FILE)) {
-    const state = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    delete state[event.id];
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-    console.log("state.json cleaned up.");
+  const messageId = JSON.parse(res1.body).id;
+  console.log(`Countdown message sent (ID: ${messageId}). Waiting 15s to edit...`);
+
+  await sleep(15000);
+
+  console.log("Resolving reveal image...");
+  const revealUrl = await resolveAssetImage(event.revealAssetId);
+  console.log("Reveal URL:", revealUrl ?? "(none)");
+
+  const outEmbed = {
+    title: `${event.name} is out!`,
+    description: stripHtml(event.descriptionHtml),
+    color: 0x1e40af,
+    fields: [
+      { name: "Type", value: event.type, inline: true },
+    ],
+    footer: { text: "This is an automated message" },
+    timestamp: new Date().toISOString(),
+  };
+  if (revealUrl) outEmbed.image = { url: revealUrl };
+
+  const res2 = await request("PATCH", `${WEBHOOK_URL}/messages/${messageId}`, {
+    embeds: [outEmbed],
+  });
+
+  if (res2.status >= 200 && res2.status < 300) {
+    console.log("Message edited to 'is out!' successfully.");
+  } else {
+    console.error("Edit failed:", res2.status, res2.body);
   }
 }
 
