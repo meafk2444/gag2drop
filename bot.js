@@ -45,37 +45,36 @@ function colorForType(type) {
   return { moon: 0x1e40af, meteor: 0xff6b35 }[type] ?? 0x5865f2;
 }
  
-async function sendAlert(event, label) {
+async function sendAlert(event) {
   const desc = stripHtml(event.descriptionHtml);
   const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
-  const assetId = event.revealAssetId ?? event.silhouetteAssetId;
+  const assetId = event.silhouetteAssetId ?? event.revealAssetId;
   const imageUrl = assetId
     ? `https://www.roblox.com/asset-thumbnail/image?assetId=${assetId}&width=512&height=512&format=png`
     : null;
  
   const embed = {
-    title: `🌕 ${event.name} is dropping <t:${ts}:R>`,
+    title: `${event.name} is dropping <t:${ts}:R>`,
     description: desc || "*(no description)*",
     color: colorForType(event.type),
     fields: [
       { name: "Type", value: event.type ?? "unknown", inline: true },
-      { name: "State", value: label, inline: true },
       { name: "Release", value: `<t:${ts}:F>`, inline: true },
     ],
-    footer: { text: `Event ID: ${event.id}` },
+    footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
   if (imageUrl) embed.image = { url: imageUrl };
  
   const payload = {
-    content: `<@&${ROLE_ID}> 🚨 **${event.name}** — ${label}`,
+    content: `<@&${ROLE_ID}>`,
     embeds: [embed],
     allowed_mentions: { roles: [ROLE_ID] },
   };
  
   const res = await postJSON(WEBHOOK_URL, payload);
   if (res.status >= 200 && res.status < 300) {
-    console.log(`Webhook sent : "${event.name}" (${label})`);
+    console.log(`Webhook sent: "${event.name}"`);
   } else {
     console.error(`Webhook failed ${res.status}: ${res.body}`);
   }
@@ -91,10 +90,9 @@ async function main() {
   }
  
   const data = await fetchJSON(API_URL);
-  if (!data?.events) { console.error("Invalid API Response"); process.exit(1); }
+  if (!data?.events) { console.error("Invalid API response"); process.exit(1); }
  
   const newState = {};
-  let sentAny = false;
   const isFirstRun = Object.keys(prevState).length === 0;
  
   for (const event of data.events) {
@@ -103,21 +101,19 @@ async function main() {
  
     if (!(id in prevState)) {
       if (!isFirstRun) {
-        await sendAlert(event, `🆕 New event (${state})`);
-        sentAny = true;
+        await sendAlert(event);
       } else {
-        console.log(`[init] ${event.name} → ${state}`);
+        console.log(`[init] ${event.name} -> ${state}`);
       }
     } else if (prevState[id] !== state) {
-      await sendAlert(event, `🔄 ${prevState[id]} → ${state}`);
-      sentAny = true;
+      await sendAlert(event);
     } else {
-      console.log(`[=] ${event.name} → ${state} (no change)`);
+      console.log(`[=] ${event.name} -> ${state} (no change)`);
     }
   }
  
   fs.writeFileSync(STATE_FILE, JSON.stringify(newState, null, 2));
-  console.log(`Done. Alerts sent : ${sentAny}`);
+  console.log("Done.");
 }
  
 main().catch((e) => { console.error(e); process.exit(1); });
