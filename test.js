@@ -10,7 +10,7 @@ const FAKE_EVENT = {
   name: "Mega Moon",
   type: "moon",
   state: "countdown",
-  releaseUnix: Math.floor(Date.now() / 1000) + 300, 
+  releaseUnix: Math.floor(Date.now() / 1000) + 300,
   graceEndUnix: Math.floor(Date.now() / 1000) + 600,
   silhouetteAssetId: 93931571035202,
   revealAssetId: 81904298114761,
@@ -40,41 +40,41 @@ function postJSON(url, body) {
 async function main() {
   const event = FAKE_EVENT;
   const ts = event.releaseUnix;
-  const imageUrl = `https://www.roblox.com/asset-thumbnail/image?assetId=${event.revealAssetId}&width=512&height=512&format=png`;
+  const assetId = event.silhouetteAssetId ?? event.revealAssetId;
+  const imageUrl = `https://www.roblox.com/asset-thumbnail/image?assetId=${assetId}&width=512&height=512&format=png`;
 
   const embed = {
-    title: `🌕 ${event.name} is dropping <t:${ts}:R>`,
+    title: `${event.name} is dropping <t:${ts}:R>`,
     description: stripHtml(event.descriptionHtml),
     color: 0x1e40af,
     fields: [
       { name: "Type", value: event.type, inline: true },
-      { name: "State", value: "🆕 New event (countdown)", inline: true },
       { name: "Release", value: `<t:${ts}:F>`, inline: true },
     ],
     image: { url: imageUrl },
-    footer: { text: `⚠️ This is a test — Event ID: ${event.id}` },
+    footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
-    content: `<@&${ROLE_ID}> 🚨 **${event.name}** — 🆕 New event (countdown)\n-# ⚠️ This is a test`,
+    content: `<@&${ROLE_ID}>`,
     embeds: [embed],
     allowed_mentions: { roles: [ROLE_ID] },
   };
 
-  console.log("Sending test...");
+  console.log("Sending test webhook...");
   const res = await postJSON(WEBHOOK_URL, payload);
   if (res.status >= 200 && res.status < 300) {
-    console.log("✅ Webhook sent ! Check your Discord channel.");
+    console.log("Webhook sent. Check your Discord channel.");
   } else {
-    console.error(`❌ Failed (HTTP ${res.status}):`, res.body);
+    console.error(`Failed (HTTP ${res.status}):`, res.body);
   }
 
   if (fs.existsSync(STATE_FILE)) {
     const state = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     delete state[event.id];
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-    console.log("State.json cleaned (fake event removed).");
+    console.log("state.json cleaned up.");
   }
 }
 
