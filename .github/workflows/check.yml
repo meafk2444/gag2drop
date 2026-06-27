@@ -1,0 +1,36 @@
+name: Check gag.gg events
+ 
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:    
+ 
+permissions:
+  contents: write           
+ 
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+ 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+ 
+      - name: Run checker
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          ROLE_ID: ${{ secrets.ROLE_ID }}
+        run: node bot.js
+ 
+      - name: Commit state if changed
+        run: |
+          git config user.name "gag2drop-bot"
+          git config user.email "bot@gag2drop"
+          git add state.json
+          # Ne commite que si state.json a changé
+          git diff --cached --quiet || git commit -m "chore: update event state [skip ci]"
+          git push
