@@ -1,4 +1,3 @@
-
 const https = require("https");
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://discord.com/api/webhooks/1520460000898846740/1slkPqhRAdV7D5S45ra7Kl3hK8Livo1FmAw7joU_tfmoVDw45UNAVxRfob-0ZSYXpfwM";
@@ -7,7 +6,7 @@ const ROLE_ID = process.env.ROLE_ID || "1520459883135369367";
 const FAKE_EVENT = {
   name: "Mega Moon",
   type: "moon",
-  releaseUnix: Math.floor(Date.now() / 1000) + 15, 
+  releaseUnix: Math.floor(Date.now() / 1000) + 15,
   silhouetteAssetId: 93931571035202,
   revealAssetId: 81904298114761,
   descriptionHtml: 'A <font color="#FFD54A">new moon</font> is in <font color="#4CAF50">grow a garden 2</font>... and it is <b><font color="#1E40AF">MEGA!</font></b> Collect seeds that spawn around the map.',
@@ -106,11 +105,12 @@ async function main() {
     color: 0x1e40af,
     fields: [
       { name: "Type", value: event.type, inline: true },
+      { name: "Released", value: `<t:${ts}:F>`, inline: true },
     ],
     footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
-  if (revealUrl) outEmbed.image = { url: revealUrl };
+  if (revealUrl) outEmbed.thumbnail = { url: revealUrl };
 
   const res2 = await request("PATCH", `${WEBHOOK_URL}/messages/${messageId}`, {
     embeds: [outEmbed],
