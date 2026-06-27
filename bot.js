@@ -6,7 +6,6 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const ROLE_ID = process.env.ROLE_ID || "1520459883135369367";
 const STATE_FILE = "state.json";
 
-
 function fetchJSON(url) {
   return new Promise((resolve) => {
     const lib = url.startsWith("https") ? https : require("http");
@@ -24,26 +23,37 @@ function fetchJSON(url) {
   });
 }
 
-function request(method, url, body) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? JSON.stringify(body) : null;
-    const u = new URL(url);
-    const opts = {
-      hostname: u.hostname,
-      path: u.pathname + u.search,
-      method,
-      headers: { "Content-Type": "application/json" },
-    };
-    if (payload) opts.headers["Content-Length"] = Buffer.byteLength(payload);
-    const req = https.request(opts, (res) => {
-      let d = "";
-      res.on("data", (c) => (d += c));
-      res.on("end", () => resolve({ status: res.statusCode, body: d }));
-    });
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function request(method, url, body, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const payload = body ? JSON.stringify(body) : null;
+        const u = new URL(url);
+        const opts = {
+          hostname: u.hostname,
+          path: u.pathname + u.search,
+          method,
+          headers: { "Content-Type": "application/json" },
+        };
+        if (payload) opts.headers["Content-Length"] = Buffer.byteLength(payload);
+        const req = https.request(opts, (res) => {
+          let d = "";
+          res.on("data", (c) => (d += c));
+          res.on("end", () => resolve({ status: res.statusCode, body: d }));
+        });
+        req.on("error", reject);
+        if (payload) req.write(payload);
+        req.end();
+      });
+      return result;
+    } catch (err) {
+      console.error(`Request failed (attempt ${attempt}/${retries}): ${err.message}`);
+      if (attempt < retries) await sleep(2000 * attempt);
+      else throw err;
+    }
+  }
 }
 
 async function resolveAssetImage(assetId) {
@@ -144,6 +154,7 @@ function loadState() {
 function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
+
 
 async function main() {
   if (!WEBHOOK_URL) { console.error("WEBHOOK_URL missing"); process.exit(1); }
