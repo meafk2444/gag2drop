@@ -46,7 +46,6 @@ function request(method, url, body) {
   });
 }
 
-
 async function resolveAssetImage(assetId) {
   if (!assetId) return null;
   const data = await fetchJSON(
@@ -54,7 +53,6 @@ async function resolveAssetImage(assetId) {
   );
   return data?.data?.[0]?.imageUrl ?? null;
 }
-
 
 function stripHtml(html) {
   if (!html) return "";
@@ -68,7 +66,6 @@ function stripHtml(html) {
 function colorForType(type) {
   return { moon: 0x1e40af, meteor: 0xff6b35 }[type] ?? 0x5865f2;
 }
-
 
 async function buildCountdownPayload(event) {
   const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
@@ -85,7 +82,7 @@ async function buildCountdownPayload(event) {
     footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
-  if (imageUrl) embed.image = { url: imageUrl };
+  if (imageUrl) embed.thumbnail = { url: imageUrl };
 
   return {
     content: `<@&${ROLE_ID}>`,
@@ -95,6 +92,7 @@ async function buildCountdownPayload(event) {
 }
 
 async function buildOutPayload(event) {
+  const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
   const imageUrl = await resolveAssetImage(event.revealAssetId);
 
   const embed = {
@@ -103,11 +101,12 @@ async function buildOutPayload(event) {
     color: colorForType(event.type),
     fields: [
       { name: "Type", value: event.type ?? "unknown", inline: true },
+      { name: "Released", value: `<t:${ts}:F>`, inline: true },
     ],
     footer: { text: "This is an automated message" },
     timestamp: new Date().toISOString(),
   };
-  if (imageUrl) embed.image = { url: imageUrl };
+  if (imageUrl) embed.thumbnail = { url: imageUrl };
 
   return { embeds: [embed] };
 }
