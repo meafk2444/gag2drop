@@ -1,12 +1,10 @@
 name: Check gag.gg events
  
 on:
-  schedule:
-    - cron: "*/5 * * * *"
-  workflow_dispatch:    
+  workflow_dispatch:
  
 permissions:
-  contents: write           
+  contents: write
  
 jobs:
   check:
@@ -31,6 +29,5 @@ jobs:
           git config user.name "gag2drop-bot"
           git config user.email "bot@gag2drop"
           git add state.json
-          # Ne commite que si state.json a changé
           git diff --cached --quiet || git commit -m "chore: update event state [skip ci]"
           git push
