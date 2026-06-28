@@ -1,6 +1,7 @@
-"auctioneer-855ed2": {
+{
+  "auctioneer-855ed2": {
     "state": "countdown",
-    "messageId": "1520615121288822905",
+    "messageId": null,
     "live": false
   }
 }
