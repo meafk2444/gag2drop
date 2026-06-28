@@ -3,5 +3,10 @@
     "state": "countdown",
     "messageId": null,
     "live": false
+  },
+  "auctioneer-855ed2": {
+    "state": "countdown",
+    "messageId": "1520617735141326871",
+    "live": false
   }
 }
