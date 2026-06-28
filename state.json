@@ -1,1 +1,7 @@
-
+{
+  "auctioneer-855ed2": {
+    "state": "countdown",
+    "messageId": null,
+    "live": true
+  }
+}
