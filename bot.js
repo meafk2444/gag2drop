@@ -6,10 +6,13 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const ROLE_ID = process.env.ROLE_ID || "1520459883135369367";
 const STATE_FILE = "state.json";
 
+// ── HTTP helpers ──────────────────────────────────────────────────────────────
+
 function fetchJSON(url) {
   return new Promise((resolve) => {
     const lib = url.startsWith("https") ? https : require("http");
     lib.get(url, { headers: { "User-Agent": "gag2drop-bot/1.0" } }, (res) => {
+      // follow one redirect
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJSON(res.headers.location).then(resolve);
       }
@@ -56,6 +59,9 @@ async function request(method, url, body, retries = 3) {
   }
 }
 
+// ── Roblox thumbnail resolution ───────────────────────────────────────────────
+
+// thumbnails.roblox.com returns the real CDN URL — Discord can embed that directly
 async function resolveAssetImage(assetId) {
   if (!assetId) return null;
   const data = await fetchJSON(
@@ -63,6 +69,8 @@ async function resolveAssetImage(assetId) {
   );
   return data?.data?.[0]?.imageUrl ?? null;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stripHtml(html) {
   if (!html) return "";
@@ -76,6 +84,8 @@ function stripHtml(html) {
 function colorForType(type) {
   return { moon: 0x1e40af, meteor: 0xff6b35 }[type] ?? 0x5865f2;
 }
+
+// ── Build embed payloads ──────────────────────────────────────────────────────
 
 async function buildCountdownPayload(event) {
   const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
@@ -118,11 +128,14 @@ async function buildOutPayload(event) {
   };
   if (imageUrl) embed.thumbnail = { url: imageUrl };
 
+  // No content / ping on edit — just update the embed silently
   return { embeds: [embed] };
 }
 
+// ── Discord webhook calls ─────────────────────────────────────────────────────
 
 async function sendMessage(payload) {
+  // ?wait=true makes Discord return the message object with its ID
   const res = await request("POST", WEBHOOK_URL + "?wait=true", payload);
   if (res.status >= 200 && res.status < 300) {
     const msg = JSON.parse(res.body);
@@ -144,6 +157,7 @@ async function editMessage(messageId, payload) {
   }
 }
 
+// ── State persistence ─────────────────────────────────────────────────────────
 
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return {};
@@ -155,6 +169,10 @@ function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
+// state shape per event:
+// { state: "countdown" | "active" | ..., messageId: "123456789" }
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   if (!WEBHOOK_URL) { console.error("WEBHOOK_URL missing"); process.exit(1); }
@@ -175,27 +193,39 @@ async function main() {
 
     if (!prev) {
       if (isFirstRun) {
+        // Silent init — record current situation
         newState[id] = { state: event.state, messageId: null, live: isLive };
         console.log(`[init] ${event.name} -> ${event.state} (live: ${isLive})`);
         continue;
       }
 
+      // Brand new event — send countdown message
       const payload = await buildCountdownPayload(event);
       const messageId = await sendMessage(payload);
       newState[id] = { state: event.state, messageId, live: false };
 
     } else {
+      // Event already known
       const wasLive = prev.live ?? false;
 
       if (!wasLive && isLive) {
+        // Timer just hit 0 — edit message or send new one if no messageId
         if (prev.messageId) {
           const payload = await buildOutPayload(event);
           await editMessage(prev.messageId, payload);
+          newState[id] = { ...prev, live: true };
+        } else {
+          // No message was ever sent — send a new one directly as "is out!"
+          const payload = await buildOutPayload(event);
+          payload.content = `<@&${ROLE_ID}>`;
+          payload.allowed_mentions = { roles: [ROLE_ID] };
+          const messageId = await sendMessage(payload);
+          newState[id] = { ...prev, live: true, messageId };
         }
-        newState[id] = { ...prev, live: true };
 
       } else if (prev.state !== event.state && !isLive) {
-
+        // State changed before release (e.g. countdown -> grace)
+        // Re-send a fresh message if we don't have one yet
         if (!prev.messageId) {
           const payload = await buildCountdownPayload(event);
           const messageId = await sendMessage(payload);
