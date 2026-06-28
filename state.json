@@ -1,10 +1,4 @@
-{
-  "hypno-bloom-0ff439": {
-    "state": "countdown",
-    "messageId": null,
-    "live": true
-  },
-  "auctioneer-855ed2": {
+"auctioneer-855ed2": {
     "state": "countdown",
     "messageId": "1520615121288822905",
     "live": false
