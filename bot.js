@@ -238,6 +238,15 @@ async function main() {
           newState[id] = { ...prev, state: event.state };
         }
 
+      } else if (prev.live && !prev.messageId) {
+        // Was marked live but message was never sent — send it now
+        console.log(`[retry] ${event.name} -> was live but no message, sending now...`);
+        const payload = await buildOutPayload(event);
+        payload.content = `<@&${ROLE_ID}>`;
+        payload.allowed_mentions = { roles: [ROLE_ID] };
+        const messageId = await sendMessage(payload);
+        console.log(`[retry] ${event.name} -> messageId: ${messageId}`);
+        newState[id] = { ...prev, messageId };
       } else {
         console.log(`[=] ${event.name} (no change)`);
       }
