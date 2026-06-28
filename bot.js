@@ -200,8 +200,10 @@ async function main() {
       }
 
       // Brand new event — send countdown message
+      console.log(`[new] ${event.name} -> sending webhook...`);
       const payload = await buildCountdownPayload(event);
       const messageId = await sendMessage(payload);
+      console.log(`[new] ${event.name} -> messageId: ${messageId}`);
       newState[id] = { state: event.state, messageId, live: false };
 
     } else {
@@ -216,10 +218,12 @@ async function main() {
           newState[id] = { ...prev, live: true };
         } else {
           // No message was ever sent — send a new one directly as "is out!"
+          console.log(`[live-no-msg] ${event.name} -> sending out webhook...`);
           const payload = await buildOutPayload(event);
           payload.content = `<@&${ROLE_ID}>`;
           payload.allowed_mentions = { roles: [ROLE_ID] };
           const messageId = await sendMessage(payload);
+          console.log(`[live-no-msg] ${event.name} -> messageId: ${messageId}`);
           newState[id] = { ...prev, live: true, messageId };
         }
 
