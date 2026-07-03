@@ -8,5 +8,10 @@
     "state": "countdown",
     "messageId": "1522745060939141392",
     "live": true
+  },
+  "butterfly-5035ae": {
+    "state": "countdown",
+    "messageId": "1522747569506353153",
+    "live": false
   }
 }
