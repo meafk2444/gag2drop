@@ -33,5 +33,10 @@
     "state": "countdown",
     "messageId": "1522758917359403201",
     "live": true
+  },
+  "rocket-pop-cd1d0f": {
+    "state": "countdown",
+    "messageId": "1522761453461831742",
+    "live": false
   }
 }
