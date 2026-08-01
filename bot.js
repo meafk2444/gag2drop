@@ -1,15 +1,15 @@
 const https = require("https");
 const fs = require("fs");
- 
+
 const API_URL = "https://gag.gg/api/events";
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const ROLE_ID = process.env.ROLE_ID || "1520459883135369367";
 const STATE_FILE = "state.json";
- 
+
 function fetchJSON(url) {
   return new Promise((resolve) => {
     const lib = url.startsWith("https") ? https : require("http");
-    lib.get(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" } }, (res) => {
+    lib.get(url, { headers: { "User-Agent": "gag2drop-bot/1.0" } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJSON(res.headers.location).then(resolve);
       }
@@ -22,9 +22,9 @@ function fetchJSON(url) {
     }).on("error", (e) => { console.error(e.message); resolve(null); });
   });
 }
- 
+
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
- 
+
 async function request(method, url, body, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -55,7 +55,7 @@ async function request(method, url, body, retries = 3) {
     }
   }
 }
- 
+
 async function resolveAssetImage(assetId) {
   if (!assetId) return null;
   const data = await fetchJSON(
@@ -63,7 +63,7 @@ async function resolveAssetImage(assetId) {
   );
   return data?.data?.[0]?.imageUrl ?? null;
 }
- 
+
 function stripHtml(html) {
   if (!html) return "";
   return html
@@ -72,15 +72,15 @@ function stripHtml(html) {
     .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#039;/g, "'")
     .trim();
 }
- 
+
 function colorForType(type) {
   return { moon: 0x1e40af, meteor: 0xff6b35 }[type] ?? 0x5865f2;
 }
- 
+
 async function buildCountdownPayload(event) {
   const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
   const imageUrl = await resolveAssetImage(event.silhouetteAssetId ?? event.revealAssetId);
- 
+
   const embed = {
     title: `${event.name} is dropping <t:${ts}:R>`,
     description: stripHtml(event.descriptionHtml) || "*(no description)*",
@@ -93,18 +93,18 @@ async function buildCountdownPayload(event) {
     timestamp: new Date().toISOString(),
   };
   if (imageUrl) embed.thumbnail = { url: imageUrl };
- 
+
   return {
     content: `<@&${ROLE_ID}>`,
     embeds: [embed],
     allowed_mentions: { roles: [ROLE_ID] },
   };
 }
- 
+
 async function buildOutPayload(event) {
   const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
   const imageUrl = await resolveAssetImage(event.revealAssetId);
- 
+
   const embed = {
     title: `${event.name} is out!`,
     description: stripHtml(event.descriptionHtml) || "*(no description)*",
@@ -117,10 +117,10 @@ async function buildOutPayload(event) {
     timestamp: new Date().toISOString(),
   };
   if (imageUrl) embed.thumbnail = { url: imageUrl };
- 
+
   return { embeds: [embed] };
 }
- 
+
 async function sendMessage(payload) {
   const res = await request("POST", WEBHOOK_URL + "?wait=true", payload);
   if (res.status >= 200 && res.status < 300) {
@@ -132,7 +132,7 @@ async function sendMessage(payload) {
     return null;
   }
 }
- 
+
 async function editMessage(messageId, payload) {
   const url = WEBHOOK_URL + `/messages/${messageId}`;
   const res = await request("PATCH", url, payload);
@@ -142,63 +142,55 @@ async function editMessage(messageId, payload) {
     console.error(`Webhook PATCH failed ${res.status}: ${res.body}`);
   }
 }
- 
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return {};
   try { return JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); }
   catch { return {}; }
 }
- 
+
 function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
- 
+
 async function main() {
   if (!WEBHOOK_URL) { console.error("WEBHOOK_URL missing"); process.exit(1); }
- 
+
   const prevState = loadState();
-  const data = JSON.parse(fs.readFileSync("api_response.json", "utf8"));
- 
+  const data = await fetchJSON(API_URL);
+
   // If API is down or returns invalid data, skip silently
   if (!data?.events) {
-  console.warn("Invalid API response — skipping this run");
-  const raw = await new Promise((resolve) => {
-    https.get(API_URL, { headers: { "User-Agent": "gag2drop-bot/1.0" } }, (res) => {
-      let d = ""; res.on("data", (c) => (d += c));
-      res.on("end", () => resolve(`HTTP ${res.statusCode}: ${d.slice(0, 300)}`));
-    }).on("error", (e) => resolve(e.message));
-  });
-  console.warn("Raw response:", raw);
-  return;
-}
- 
- 
+    console.warn("Invalid API response — skipping this run");
+    return;
+  }
+
   const newState = { ...prevState };
   const isFirstRun = Object.keys(prevState).length === 0;
   const now = Math.floor(Date.now() / 1000);
- 
+
   for (const event of data.events) {
     const { id } = event;
     const ts = event.releaseUnix > 1e12 ? Math.floor(event.releaseUnix / 1000) : event.releaseUnix;
     const isLive = now >= ts;
     const prev = prevState[id];
- 
+
     if (!prev) {
       if (isFirstRun) {
         newState[id] = { state: event.state, messageId: null, live: isLive };
         console.log(`[init] ${event.name} -> ${event.state} (live: ${isLive})`);
         continue;
       }
- 
+
       console.log(`[new] ${event.name} -> sending webhook...`);
       const payload = await buildCountdownPayload(event);
       const messageId = await sendMessage(payload);
       console.log(`[new] ${event.name} -> messageId: ${messageId}`);
       newState[id] = { state: event.state, messageId, live: false };
- 
+
     } else {
       const wasLive = prev.live ?? false;
- 
+
       if (!wasLive && isLive) {
         if (prev.messageId) {
           const payload = await buildOutPayload(event);
@@ -213,7 +205,7 @@ async function main() {
           console.log(`[live-no-msg] ${event.name} -> messageId: ${messageId}`);
           newState[id] = { ...prev, live: true, messageId };
         }
- 
+
       } else if (prev.state !== event.state && !isLive) {
         if (!prev.messageId) {
           const payload = await buildCountdownPayload(event);
@@ -222,7 +214,7 @@ async function main() {
         } else {
           newState[id] = { ...prev, state: event.state };
         }
- 
+
       } else if (prev.live && !prev.messageId) {
         console.log(`[retry] ${event.name} -> was live but no message, sending now...`);
         const payload = await buildOutPayload(event);
@@ -231,15 +223,15 @@ async function main() {
         const messageId = await sendMessage(payload);
         console.log(`[retry] ${event.name} -> messageId: ${messageId}`);
         newState[id] = { ...prev, messageId };
- 
+
       } else {
         console.log(`[=] ${event.name} (no change)`);
       }
     }
   }
- 
+
   saveState(newState);
   console.log("Done.");
 }
- 
+
 main().catch((e) => { console.error(e); process.exit(1); });
