@@ -161,9 +161,17 @@ async function main() {
  
   // If API is down or returns invalid data, skip silently
   if (!data?.events) {
-    console.warn("Invalid API response — skipping this run");
-    return;
-  }
+  console.warn("Invalid API response — skipping this run");
+  const raw = await new Promise((resolve) => {
+    https.get(API_URL, { headers: { "User-Agent": "gag2drop-bot/1.0" } }, (res) => {
+      let d = ""; res.on("data", (c) => (d += c));
+      res.on("end", () => resolve(`HTTP ${res.statusCode}: ${d.slice(0, 300)}`));
+    }).on("error", (e) => resolve(e.message));
+  });
+  console.warn("Raw response:", raw);
+  return;
+}
+ 
  
   const newState = { ...prevState };
   const isFirstRun = Object.keys(prevState).length === 0;
