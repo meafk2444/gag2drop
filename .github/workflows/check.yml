@@ -18,19 +18,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Fetch API data
-        run: |
-          curl -v \
-            -H "Accept: application/json" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-            -H "Accept-Language: en-US,en;q=0.9" \
-            -H "Referer: https://gag.gg/" \
-            -H "sec-fetch-dest: empty" \
-            -H "sec-fetch-mode: cors" \
-            -H "sec-fetch-site: same-origin" \
-            "https://gag.gg/api/events" > api_response.json 2>&1
-          cat api_response.json
-
       - name: Run checker
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
