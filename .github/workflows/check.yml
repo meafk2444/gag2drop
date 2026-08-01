@@ -1,29 +1,38 @@
 name: Check gag.gg events
- 
+
 on:
   workflow_dispatch:
- 
+
 permissions:
   contents: write
- 
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
- 
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
- 
+
+      - name: Fetch API data
+        run: |
+          curl -s \
+            -H "Accept: application/json" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            "https://gag.gg/api/events" > api_response.json
+          cat api_response.json
+
       - name: Run checker
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           ROLE_ID: ${{ secrets.ROLE_ID }}
         run: node bot.js
- 
+
       - name: Commit state if changed
         run: |
           git config user.name "gag2drop-bot"
