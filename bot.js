@@ -157,7 +157,7 @@ async function main() {
   if (!WEBHOOK_URL) { console.error("WEBHOOK_URL missing"); process.exit(1); }
  
   const prevState = loadState();
-  const data = await fetchJSON(API_URL);
+  const data = JSON.parse(fs.readFileSync("api_response.json", "utf8"));
  
   // If API is down or returns invalid data, skip silently
   if (!data?.events) {
